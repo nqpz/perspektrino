@@ -2,23 +2,25 @@
 
 module Main where
 
+import GHC.Int
 import Prelude hiding (Left, Right)
 import Data.List
-import Data.Bits
-import Data.Function (on)
 import Data.Word
+import Data.Bits
 import Data.Ratio
-import Graphics.Rendering.Cairo
+import Control.Monad
+import Control.Concurrent (threadDelay)
+import qualified System.Random as R
 import qualified Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.Primitives as SDLp
-import qualified Graphics.UI.SDL.Image as SDLi
 import Graphics.UI.SDL.Keysym
-import Control.Concurrent (threadDelay)
-import Control.Monad
-import qualified System.Random as R
 
-type Position2D = (Rational, Rational)
+
 type Position3D = (Int, Int, Int)
+type World = [Position3D]
+type Position2D = (Ratio Int, Ratio Int)
+type Polygon = [Position2D]
+
 data Direction = Up | Right | Down | Left
                 deriving (Show, Read, Eq, Ord)
 instance Enum Direction where
@@ -37,42 +39,46 @@ instance Enum Direction where
   fromEnum Right = 1
   fromEnum Down  = 2
   fromEnum Left  = 3
-                         
-type World = [Position3D]
-type Color = (Double, Double, Double, Double)
-data Drawable = Polygon [Position2D]
-              deriving (Show, Read, Eq, Ord)
-data DrawAttribute = Fill Color
-                   | Gradient Color Color Direction
-                   deriving (Show, Read, Eq, Ord)
-type Drawing = (Drawable, DrawAttribute)
-type PolygonRender = [Drawing]
 
 
-worldToPoly :: World -> PolygonRender
-worldToPoly = concatMap blockToPoly
+worldToPoly :: World -> [Polygon]
+worldToPoly = concatMap cubePoly
               . filter posInView
               . sortBy drawFirstCompare
   where drawFirstCompare (x0, y0, z0) (x1, y1, z1)
           = compare (z1, abs x1, abs y1) (z0, abs x0, abs y0)
+
         posInView (x, y, z) = z >= 0
                               && y >= start - 1 && y <= end
                               && x >= start - 1 && x <= end
           where (start, end) = (-z, z + 1)
 
-blockToPoly :: Position3D -> PolygonRender
-blockToPoly (x, y, z)
+cubePoly :: Position3D -> [Polygon]
+cubePoly (x, y, z)
   = polys x Left ++ polys y Up
-    ++ [filledSquare (top z x) (top z y) (size z) (size z)]
-  where size z = 1 % (fromIntegral z * 2 + 1)
+    ++ [squarePoly (top z x) (top z y) (size z) (size z)]
+  where size :: Int -> Ratio Int
+        size z = 1 % (z * 2 + 1)
+
+        top :: Int -> Int -> Ratio Int
         top z rel = fromIntegral (z + rel) * size z
+
+        bottom :: Int -> Int -> Ratio Int
         bottom z rel = top z rel + size z
+
+        fitsTop :: Int -> Bool
         fitsTop rel = top z rel > top (z + 1) rel
+
+        fitsBottom :: Int -> Bool
         fitsBottom rel = bottom z rel < bottom (z + 1) rel
+
+        polys :: Int -> Direction -> [Polygon]
         polys rel d | fitsTop rel == fitsBottom rel = []
                     | fitsTop rel = [trapezoidShape d]
                     | fitsBottom rel = [trapezoidShape $ succ $ succ d]
-        trapezoidShape dir = gradientTrapezoid dir . shape' $ case dir of
+
+        trapezoidShape :: Direction -> Polygon
+        trapezoidShape dir = shape' $ case dir of
           Up -> (top, top, bottom, top)
           Right -> (bottom, top, bottom, bottom)
           Down -> (top, bottom, bottom, bottom)
@@ -83,14 +89,8 @@ blockToPoly (x, y, z)
                                       , (c z x, d z y)
                                       ]
 
-filledSquare :: Rational -> Rational -> Rational -> Rational -> Drawing
-filledSquare x y w h = (Polygon [(x, y), (x + w, y),
-                                 (x + w, y + h), (x, y + h)],
-                        Fill (0.2, 0.2, 0.2, 1.0))
-
-gradientTrapezoid :: Direction -> [Position2D] -> Drawing
-gradientTrapezoid ldir points
-  = (Polygon points, Gradient (0.2, 0.2, 0.2, 1.0) (0.3, 0.3, 0.3, 1.0) ldir)
+squarePoly :: Ratio Int -> Ratio Int -> Ratio Int -> Ratio Int -> Polygon
+squarePoly x y w h = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
 
 turn :: Direction -> World -> World
 turn dir = map $ \(x, y, z) ->
@@ -109,13 +109,15 @@ move dir = map $ \(x, y, z) -> case dir of
   Down  -> (x, y, z + 1)
   Up    -> (x, y, z - 1)
 
-width  = 1080
+width :: Int
+width  = 1920
+height :: Int
 height = 1080
 
 explore :: World -> IO ()
 explore world = do
   SDL.init [SDL.InitEverything]
-  SDL.setVideoMode width height 24 []
+  SDL.setVideoMode width height 32 []
   SDL.setCaption "Perspektrino Explorer" "perspektrino-explore"
   screenSurf <- SDL.getVideoSurface
   explore' screenSurf world
@@ -127,40 +129,41 @@ explore world = do
           SDL.fillRect screenSurf Nothing (SDL.Pixel 0x00000000)
           mapM_ (drawPoly screenSurf) (worldToPoly world)
           SDL.flip screenSurf
-        drawPoly :: SDL.Surface -> Drawing -> IO Bool
-        drawPoly screenSurf (Polygon points, attr) = do
+        drawPoly :: SDL.Surface -> Polygon -> IO Bool
+        drawPoly screenSurf points = do
           pixel <- R.randomRIO (0, 2^24 - 1)
           let pixel' = 0x000000ff + pixel `shiftL` 8
           SDLp.filledPolygon screenSurf (map point16 points) (SDL.Pixel pixel')
-          where point16 (x, y) = (round (x * fromIntegral width), round (y * fromIntegral height))
+          where point16 (x, y) = (fromIntegral (round (x * fromIntegral width)),
+                                  fromIntegral (round (y * fromIntegral height)))
         readEvent screenSurf world = do
           event <- SDL.pollEvent
           case eventAction event of
             Nothing -> SDL.quit
-            Just Nothing -> threadDelay 100000 >> readEvent screenSurf world
+            Just Nothing -> threadDelay 1000 >> readEvent screenSurf world
             Just (Just action) -> explore' screenSurf $ action world
 
         eventAction :: SDL.Event -> Maybe (Maybe (World -> World))
         eventAction (SDL.KeyDown (Keysym k mods _))
-          | k == SDLK_UP    = w Up
-          | k == SDLK_RIGHT = w Right
-          | k == SDLK_DOWN  = w Down
-          | k == SDLK_LEFT  = w Left
-          where w = Just . Just . w'
-                w' | any (`elem` mods) [KeyModCtrl, KeyModLeftCtrl,
-                                        KeyModRightCtrl] = turn
-                   | otherwise = move
+          | k == SDLK_UP && ctrl = j $ turn Down
+          | k == SDLK_UP = j $ move Up
+          | k == SDLK_DOWN && ctrl = j $ turn Up
+          | k == SDLK_DOWN = j $ move Down
+          | k == SDLK_RIGHT && ctrl = j $ move Right
+          | k == SDLK_RIGHT = j $ turn Right
+          | k == SDLK_LEFT && ctrl = j $ move Left
+          | k == SDLK_LEFT = j $ turn Left
+          where ctrl = any (`elem` mods) [KeyModCtrl, KeyModLeftCtrl,
+                                          KeyModRightCtrl]
+                j = Just . Just
         eventAction SDL.Quit = Nothing
         eventAction _ = Just Nothing
 
-generateWorld :: Int -> Int -> Int -> IO [Position3D]
-generateWorld nblocks start end = replicateM nblocks $ do
+
+randomWorld :: Int -> Int -> Int -> IO World
+randomWorld nblocks start end = replicateM nblocks $ do
   [x, y, z] <- replicateM 3 $ R.randomRIO (start, end)
   return (x, y, z)
-
-exploreGeneratedWorld :: Int -> Int -> Int -> IO ()
-exploreGeneratedWorld nblocks start end = generateWorld nblocks start end >>= explore
-
 
 dikuKantine :: World
 dikuKantine = surf (-1) ++ surf 3 ++ wall (-4) ++ wall 4 ++ endWall 48
@@ -177,5 +180,4 @@ box = concat [ [ (x, y, z) | x <- [-5..5], y <- [-5..5], z <- [-5,5] ]
              , [ (x, y, z) | y <- [-5..5], z <- [-5..5], x <- [-5,5] ]
              , [ (2, 2, 2), (3, -5, 1) ]
              ]
-
 
