@@ -4,11 +4,13 @@ module Main where
 
 import Prelude hiding (Left, Right)
 import Data.List
+import Data.Bits
 import Data.Function (on)
 import Data.Word
 import Data.Ratio
 import Graphics.Rendering.Cairo
 import qualified Graphics.UI.SDL as SDL
+import qualified Graphics.UI.SDL.Primitives as SDLp
 import qualified Graphics.UI.SDL.Image as SDLi
 import Graphics.UI.SDL.Keysym
 import Control.Concurrent (threadDelay)
@@ -107,42 +109,13 @@ move dir = map $ \(x, y, z) -> case dir of
   Down  -> (x, y, z + 1)
   Up    -> (x, y, z - 1)
 
-width  = 800
-height = 800
-
-renderToPNG :: FilePath -> PolygonRender -> Int -> Int -> IO ()
-renderToPNG fname drawings width height = do
-  surf <- createImageSurface FormatARGB32 width height
-  renderWith surf (draw drawings)
-  surfaceWriteToPNG surf fname
-  surfaceFinish surf
-  where draw :: PolygonRender -> Render ()
-        draw drawings = do
-          setFillRule FillRuleWinding
-          setSourceRGBA 1.0 1.0 1.0 1.0
-          rectangle 0 0 (fromIntegral width) (fromIntegral height)
-          fill
-          mapM_ drawDrawing drawings
-        drawDrawing (Polygon points, attr) = do
-          setSourceRGBA 0.0 0.0 0.0 1.0
-          moveTo x y
-          mapM_ (uncurry lineTo) points'
-          closePath
-          strokePreserve
-          setAttr attr
-          fill
-          where ((x, y) : points')
-                  = map (\(x, y) -> (fromRational (fromIntegral width * x),
-                                     fromRational (fromIntegral height * y)))
-                    points
-                setAttr (Fill (r, g, b, a)) = setSourceRGBA r g b a
-                setAttr (Gradient (r0, g0, b0, a0) (r1, g1, b1, a1) ldir)
-                  = setSourceRGBA r0 g0 b0 a0 -- FIXME
+width  = 1080
+height = 1080
 
 explore :: World -> IO ()
 explore world = do
   SDL.init [SDL.InitEverything]
-  SDL.setVideoMode width height 32 []
+  SDL.setVideoMode width height 24 []
   SDL.setCaption "Perspektrino Explorer" "perspektrino-explore"
   screenSurf <- SDL.getVideoSurface
   explore' screenSurf world
@@ -151,10 +124,15 @@ explore world = do
           renderWorldToScreen screenSurf world
           readEvent screenSurf world
         renderWorldToScreen screenSurf world = do
-          renderToPNG "temp.png" (worldToPoly world) width height
-          surf <- SDLi.load "temp.png"
-          SDL.blitSurface surf Nothing screenSurf Nothing
+          SDL.fillRect screenSurf Nothing (SDL.Pixel 0x00000000)
+          mapM_ (drawPoly screenSurf) (worldToPoly world)
           SDL.flip screenSurf
+        drawPoly :: SDL.Surface -> Drawing -> IO Bool
+        drawPoly screenSurf (Polygon points, attr) = do
+          pixel <- R.randomRIO (0, 2^24 - 1)
+          let pixel' = 0x000000ff + pixel `shiftL` 8
+          SDLp.filledPolygon screenSurf (map point16 points) (SDL.Pixel pixel')
+          where point16 (x, y) = (round (x * fromIntegral width), round (y * fromIntegral height))
         readEvent screenSurf world = do
           event <- SDL.pollEvent
           case eventAction event of
@@ -200,17 +178,4 @@ box = concat [ [ (x, y, z) | x <- [-5..5], y <- [-5..5], z <- [-5,5] ]
              , [ (2, 2, 2), (3, -5, 1) ]
              ]
 
-saveFilm :: World -> [World -> World] -> IO ()
-saveFilm world actions = mapM_ render $ zip [0..] scenes
-  where scenes = scanl (flip ($)) world actions
-        render (i, world') = do
-          let fn = (take (8 - length (show i))
-                    (repeat '0') ++ show i ++ ".png")
-          renderToPNG fn (worldToPoly world') width height
-          putStrLn fn
 
-save_film0 = do
-  w <- generateWorld 10000 (-1000) 1000
-  saveFilm w $ take 1000 $ repeat (move Up)
-
-main = save_film0
