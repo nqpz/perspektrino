@@ -20,7 +20,7 @@ type Position3D = (Int, Int, Int)
 type World = [Position3D]
 type Position2D = (Ratio Int, Ratio Int)
 type Polygon = [Position2D]
-type Axis = X | Y | Z
+data Axis = X | Y | Z
 
 data Direction1D = Clock | CClock
                  deriving (Show, Read, Eq, Ord)
@@ -185,19 +185,28 @@ box = concat [ [ (x, y, z) | x <- [-5..5], y <- [-5..5], z <- [-5,5] ]
              ]
 
 translate :: Position3D -> World -> World
-translate = undefined
+translate (x0, y0, z0) = map (\(x, y, z) -> (x + x0, y + y0, z + z0))
 
 rotate :: Axis -> Direction1D -> World -> World
 rotate = undefined
 
 room :: Int -> Int -> Int -> World
-room = undefined
+room x0 y0 z0 = concat [ [ (x, y, z) | x <- [0..xw], y <- [0..yw], z <- [0, zw] ]
+                       , [ (x, y, z) | z <- [0..zw], x <- [0..xw], y <- [0, yw] ]
+                       , [ (x, y, z) | y <- [0..yw], z <- [0..zw], x <- [0, xw] ]
+                       ]
+  where (xw, yw, zw) = (x0 + 1, y0 + 1, z0 + 1)
 
 hole :: Position3D -> World -> World
-hole = undefined
+hole p = filter (/= p)
 
 alphaBase :: World
-alphaBase = hole (0, 0, 5) solids
-  where startRoom = translate (-2, 0, 0) $ room 5 3 5
-        corridor0 = translate (0, 0, 5) $ room 1 2 8
-        solids = startRoom ++ corridor0
+alphaBase = hole (0, 0, 14)
+            $ hole (0, 0, 5)
+            $ hole (0, -1, 5)
+            $ translate (0, -3, -1) solids
+  where startRoom = translate (-3, 0, 0) $ room 5 3 5
+        corridor0 = translate (-1, 1, 6) $ room 1 2 8
+        corridor1 = translate (-1, 2, 15) $ room 8 1 1
+        endRoom = translate (8, 2, 10) $ room 10 10 10
+        solids = startRoom ++ corridor0 ++ corridor1 ++ endRoom
