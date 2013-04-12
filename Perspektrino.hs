@@ -20,10 +20,13 @@ type Position3D = (Int, Int, Int)
 type World = [Position3D]
 type Position2D = (Ratio Int, Ratio Int)
 type Polygon = [Position2D]
+type Axis = X | Y | Z
 
-data Direction = Up | Right | Down | Left
-                deriving (Show, Read, Eq, Ord)
-instance Enum Direction where
+data Direction1D = Clock | CClock
+                 deriving (Show, Read, Eq, Ord)
+data Direction2D = Up | Right | Down | Left
+                 deriving (Show, Read, Eq, Ord)
+instance Enum Direction2D where
   succ Up    = Right
   succ Right = Down
   succ Down  = Left
@@ -72,12 +75,12 @@ cubePoly (x, y, z)
         fitsBottom :: Int -> Bool
         fitsBottom rel = bottom z rel < bottom (z + 1) rel
 
-        polys :: Int -> Direction -> [Polygon]
+        polys :: Int -> Direction2D -> [Polygon]
         polys rel d | fitsTop rel == fitsBottom rel = []
                     | fitsTop rel = [trapezoidShape d]
                     | fitsBottom rel = [trapezoidShape $ succ $ succ d]
 
-        trapezoidShape :: Direction -> Polygon
+        trapezoidShape :: Direction2D -> Polygon
         trapezoidShape dir = shape' $ case dir of
           Up -> (top, top, bottom, top)
           Right -> (bottom, top, bottom, bottom)
@@ -92,7 +95,7 @@ cubePoly (x, y, z)
 squarePoly :: Ratio Int -> Ratio Int -> Ratio Int -> Ratio Int -> Polygon
 squarePoly x y w h = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
 
-turn :: Direction -> World -> World
+turn :: Direction2D -> World -> World
 turn dir = map $ \(x, y, z) ->
   let z' = z + 1
       (x', y', z'') = case dir of
@@ -102,7 +105,7 @@ turn dir = map $ \(x, y, z) ->
         Up    -> (x, z', -y)
   in (x', y', z'' - 1)
 
-move :: Direction -> World -> World
+move :: Direction2D -> World -> World
 move dir = map $ \(x, y, z) -> case dir of
   Right -> (x - 1, y, z)
   Left  -> (x + 1, y, z)
@@ -181,3 +184,20 @@ box = concat [ [ (x, y, z) | x <- [-5..5], y <- [-5..5], z <- [-5,5] ]
              , [ (2, 2, 2), (3, -5, 1) ]
              ]
 
+translate :: Position3D -> World -> World
+translate = undefined
+
+rotate :: Axis -> Direction1D -> World -> World
+rotate = undefined
+
+room :: Int -> Int -> Int -> World
+room = undefined
+
+hole :: Position3D -> World -> World
+hole = undefined
+
+alphaBase :: World
+alphaBase = hole (0, 0, 5) solids
+  where startRoom = translate (-2, 0, 0) $ room 5 3 5
+        corridor0 = translate (0, 0, 5) $ room 1 2 8
+        solids = startRoom ++ corridor0
