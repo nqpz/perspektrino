@@ -1,0 +1,28 @@
+name:                perspektrino
+version:             0.1.0.0
+github:              "nqpz/perspektrino"
+license:             WTFPL
+author:              "Niels G. W. Serup"
+maintainer:          "ngws@metanohi.name"
+copyright:           "2020 Niels G. W. Serup"
+
+extra-source-files:
+- README.md
+
+description:         Please see the README on GitHub at <https://github.com/nqpz/perspektrino#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- random
+- SDL
+- SDL-gfx
+
+library:
+  source-dirs: src
+
+executables:
+  perspektrino:
+    main:                Main.hs
+    source-dirs:         app
+    dependencies:
+    - perspektrino

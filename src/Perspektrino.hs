@@ -1,6 +1,6 @@
 {-# LANGUAGE TupleSections #-}
 
-module Main where
+module Perspektrino where
 
 import GHC.Int
 import Prelude hiding (Left, Right)
@@ -37,7 +37,7 @@ instance Enum Direction2D where
   toEnum 2 = Down
   toEnum 3 = Left
   toEnum n = toEnum $ n `mod` 4
-  
+
   fromEnum Up    = 0
   fromEnum Right = 1
   fromEnum Down  = 2
@@ -176,7 +176,7 @@ dikuKantine = surf (-1) ++ surf 3 ++ wall (-4) ++ wall 4 ++ endWall 48
         wall x = [ (x, y, z) | y <- [-1..3], z <- [0..48] ]
         endWall z = [ (x, y, z) | y <- [-1..3], x <- [-4..4] ]
         blocks x0 x1 y0 y1 z0 z1 = [ (x, y, z) | x <- [x0..x1], y <- [y0..y1], z <- [z0..z1] ]
-  
+
 box :: World
 box = concat [ [ (x, y, z) | x <- [-5..5], y <- [-5..5], z <- [-5,5] ]
              , [ (x, y, z) | x <- [-5..5], z <- [-5..5], y <- [-5,5] ]
