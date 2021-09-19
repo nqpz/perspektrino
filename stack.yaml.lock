@@ -20,7 +20,7 @@ packages:
     hackage: SDL-gfx-0.7.0.0@sha256:0e3270407550e4a67012d42d45a2df373d628d128e176913d1399f33896e0978,1084
 snapshots:
 - completed:
-    size: 532379
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/8.yaml
-    sha256: 2ad3210d2ad35f3176005d68369a18e4d984517bfaa2caade76f28ed0b2e0521
-  original: lts-16.8
+    size: 524996
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/14/27.yaml
+    sha256: 7ea31a280c56bf36ff591a7397cc384d0dff622e7f9e4225b47d8980f019a0f0
+  original: lts-14.27

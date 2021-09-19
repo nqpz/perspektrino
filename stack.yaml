@@ -1,8 +1,8 @@
-resolver: lts-16.8
+resolver: lts-14.27
 
 extra-deps:
 - SDL-0.6.7.0@sha256:9d6ba75c0cab575ec38468c8277803983e985f9622437aeca6a53e6a7337a7d5,2045
 - SDL-gfx-0.7.0.0@sha256:0e3270407550e4a67012d42d45a2df373d628d128e176913d1399f33896e0978,1084
 
 nix:
-  packages: [pkgconfig, SDL, SDL_gfx]
+  shell-file: default.nix
